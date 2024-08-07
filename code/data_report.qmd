@@ -1,0 +1,243 @@
+---
+title: "Data Science Report"
+format: 
+  html:
+    self-contained: true
+    title-block-banner: true
+    #title-block-banner-color: "#7FFFD4"
+    number-sections: true
+    page-layout: full
+    toc: true
+    toc-title: Contents
+    toc-location: left
+    code-fold: true
+    code-overflow: wrap
+    code-tools: true
+    theme: flatly
+    cap-location: bottom
+    
+editor: visual
+author: "Zheng Ren"
+date: "`r Sys.Date()`"
+execute:
+  error: false
+  warning: false
+  message: false
+  results: asis
+  freeze: auto
+---
+
+```{r setup}
+#| include: false
+#knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_knit$set(root.dir = "/Users/zhengren/Desktop/JHU/Onboarding/placement exam prep/data_science_exam")
+options(scipen=999)
+setwd("/Users/zhengren/Desktop/JHU/Onboarding/placement exam prep/data_science_exam")
+library(rvest)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(tidyverse)
+library(kableExtra)
+```
+
+# Aim
+
+In this report, I aim to explore two data science-related questions: 1) How has the **death toll** caused by natural disasters in the **20th and 21st centuries** changed over the years? 2) How does the performance of the **gradient descent algorithm** in searching for the minimum of a loss function depend on the **learning rate**?
+
+# Question 1
+
+## Step 1: Web Scripting and Data Cleaning
+
+In this step, I used a web scripting method in R to get the death toll data for the 20th and 21st centuries from the [Wikipedia](https://en.wikipedia.org/wiki/List_of_natural_disasters_by_death_toll) page on natural disasters. After some data cleaning, below is a snapshot of the clean data.
+
+```{r}
+url = "https://en.wikipedia.org/wiki/List_of_natural_disasters_by_death_toll"
+page = read_html(url)
+tables = page %>% html_nodes("table")
+twenty_centry = tables[[3]] %>% html_table(fill = TRUE)
+twenty_first_centry = tables[[4]] %>% html_table(fill = TRUE)
+## Data cleaning
+twenty_centry$`Death toll` = sapply(twenty_centry$`Death toll`, function(x){
+  x = gsub(",", "", x)
+  x = gsub("\\+", "", x)
+  if(grepl("–", x)){
+    a = as.numeric(str_split(x, "–")[[1]][1])
+    b = as.numeric(str_split(x, "–")[[1]][2])
+    x = (a+b)/2
+  }else if(grepl("-", x)){
+    a = as.numeric(str_split(x, "-")[[1]][1])
+    b = as.numeric(str_split(x, "-")[[1]][2])
+    x = (a+b)/2
+  }else if(grepl("\\[", x)){
+    x = gsub("\\[.*\\]", "", x)
+  }
+  return(as.numeric(x))
+}, USE.NAMES = FALSE)
+
+twenty_first_centry$`Death toll` = sapply(twenty_first_centry$`Death toll`, function(x){
+  x = gsub(",", "", x)
+  x = gsub("\\+", "", x)
+  x = gsub("\\(.*\\)", "", x)
+  if(grepl("–", x)){
+    a = as.numeric(str_split(x, "–")[[1]][1])
+    b = as.numeric(str_split(x, "–")[[1]][2])
+    x = (a+b)/2
+  }else if(grepl("-", x)){
+    a = as.numeric(str_split(x, "-")[[1]][1])
+    b = as.numeric(str_split(x, "-")[[1]][2])
+    x = (a+b)/2
+  }else if(grepl("\\[", x)){
+    x = gsub("\\[.*\\]", "", x)
+  }
+  return(as.numeric(x))
+}, USE.NAMES = FALSE)
+
+combined_df = rbind(twenty_centry, twenty_first_centry)
+combined_df$Type = sapply(combined_df$Type, function(x){
+  if(x == "Heat Wave"){return("Heat wave")}else if(x == "Earthquake, Tsunami"){
+    return("Earthquake")}else if(x == "Tropical cyclone, Flood"){return("Tropical cyclone")}else{return(x)}
+}, USE.NAMES = FALSE)
+kable(combined_df %>% head(10), align = "c") %>% kable_styling(bootstrap_options = "striped")
+```
+
+## Step 2: Visualization
+
+In this step, we aim to further investigate how the death toll numbers have changed over the years for different types of disasters in the 20th and 21st centuries. A bar plot can be found below.
+
+```{r}
+#| label: fig-charts1
+#| fig-cap: "Death Toll Distribution"
+#| fig-align: "center"
+ggplot(combined_df, aes(x = Year, y = `Death toll`, fill = Type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "20th and 21th Century Deadliest Natural Disasters By Year") +
+  scale_x_continuous(breaks = seq(min(combined_df$Year), max(combined_df$Year), by = 5)) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),  
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    axis.title.x = element_text(size = 12),  
+    axis.title.y = element_text(size = 12)   
+  )
+
+
+```
+
+::: callout-tip
+### Key Findings
+
+Some key findings can be found below:
+
+-   In 1931, the **flood** caused a significant number of deaths, far more than in any other year in the two centuries.
+-   **Earthquakes**, **floods**, and **tropical cyclones** are three types of disasters that have been seen more often in the past two centuries compared to other types. Among these three, **earthquakes** are the most common.
+-   **Tropical cyclones** were seen more often from the **1950s to the 1980s**.
+:::
+
+# Question 2
+
+## One Example Test
+
+Below is an example test to show the overall performance of the gradient descent algorithm in searching for the minimum of the loss function: $L(b) = \|y - b x\|^2$. In this example, x and y both have a length of 100, and I choose a learning rate of 0.01 with the maximum number of iterations set to 1000 and the tolerance set to $1*10^{-6}$. 
+```{r}
+## Create the gradient descent function
+gradient_descent = function(x, y, e = 0.01, iter = 1000, tol = 1e-6) {
+  b = 0
+  for (i in 1:iter) {
+    gradient = -2 * sum(x * (y - b * x))
+    b_new = b - e * gradient
+    if (abs(b_new - b) < tol) {
+      break
+    }
+    b = b_new
+  }
+  return(b)
+}
+
+## Test the function
+test_run = function(n, e, s = 123){
+  set.seed(s)
+  x = rnorm(n)
+  y = rnorm(n)
+  true_b = sum(x*y)/sum(x^2)
+  estimated_b = gradient_descent(x, y, e)
+  return(list("true" = true_b, "estimated" = estimated_b))
+}
+
+### One test example
+test_illustration = test_run(n = 100, e = 0.01)
+true_b = test_illustration$true
+estimated_b = test_illustration$estimated
+cat("True b:", true_b, "\nEstimated b:", estimated_b, "\n")
+```
+
+As we can see in this example, the overall accuracy of the estimated b is excellent.
+
+## Learning Rate Investigation
+
+I then want to further examine how the performance of the algorithm depends on the learning rate e. Below are scatter plots depicting how the estimated b values change with different learning rates as well as different vector lengths. For the purpose of illustration, I chose n to be 10, 100, and 1000.
+
+::: panel-tabset
+### n = 10
+
+```{r}
+#| label: fig-charts2
+#| fig-cap: "Estimated b Distribution: n = 10"
+#| fig-align: "center"
+es = seq(0.001, 0.12, by = 0.001)
+test_list = lapply(1:length(es), function(i) test_run(n = 10, e = es[i], s = 123))
+true_bs = lapply(1:length(test_list), function(i) test_list[[i]]$true) %>% unlist()
+estimated_bs = lapply(1:length(test_list), function(i) test_list[[i]]$estimated) %>% unlist()
+test_df = data.frame(cbind(es, true_bs, estimated_bs))
+test_df = test_df %>% pivot_longer(cols = c(2:3), names_to = "type", values_to = "b") %>% mutate(type = case_when(type == "estimated_bs" ~ "estimated value",
+                                                                                                                  type == "true_bs" ~ "true value"))
+ggplot(test_df, aes(x = es, y = b, color = type)) +
+  geom_point() +
+  labs(x = "learng rate", y = "b", color = "b type")
+```
+
+### n = 100
+
+```{r}
+#| label: fig-charts3
+#| fig-cap: "Estimated b Distribution: n = 100"
+#| fig-align: "center"
+es = seq(0.001, 0.011, by = 0.0001)
+test_list = lapply(1:length(es), function(i) test_run(n = 100, e = es[i], s = 123))
+true_bs = lapply(1:length(test_list), function(i) test_list[[i]]$true) %>% unlist()
+estimated_bs = lapply(1:length(test_list), function(i) test_list[[i]]$estimated) %>% unlist()
+test_df = data.frame(cbind(es, true_bs, estimated_bs))
+test_df = test_df %>% pivot_longer(cols = c(2:3), names_to = "type", values_to = "b") %>% mutate(type = case_when(type == "estimated_bs" ~ "estimated value",
+                                                                                                                  type == "true_bs" ~ "true value"))
+ggplot(test_df, aes(x = es, y = b, color = type)) +
+  geom_point() +
+  labs(x = "learng rate", y = "b", color = "b type")
+```
+
+### n = 1000
+
+```{r}
+#| label: fig-charts4
+#| fig-cap: "Estimated b Distribution: n = 1000"
+#| fig-align: "center"
+es = seq(0.0001, 0.001, by = 0.00001)
+test_list = lapply(1:length(es), function(i) test_run(n = 1000, e = es[i], s = 123))
+true_bs = lapply(1:length(test_list), function(i) test_list[[i]]$true) %>% unlist()
+estimated_bs = lapply(1:length(test_list), function(i) test_list[[i]]$estimated) %>% unlist()
+test_df = data.frame(cbind(es, true_bs, estimated_bs))
+test_df = test_df %>% pivot_longer(cols = c(2:3), names_to = "type", values_to = "b") %>% mutate(type = case_when(type == "estimated_bs" ~ "estimated value",
+                                                                                                                  type == "true_bs" ~ "true value"))
+ggplot(test_df, aes(x = es, y = b, color = type)) +
+  geom_point() +
+  labs(x = "learng rate", y = "b", color = "b type")
+```
+:::
+
+::: callout-tip
+### Learning Rate
+
+Some key findings can be found below:
+
+-   If the learning rate is **too large**, each update step can move far from its current position, pushing b further away and causing it to **diverge** to very large values. This can make the loss function increase rather than decrease or cause b to **oscillate around the minimum**.
+-   Different values of n are sensitive to different learning rates: as **n becomes larger**, the **learning rate needs to be smaller**, or the algorithm will diverge and fail.
+:::
