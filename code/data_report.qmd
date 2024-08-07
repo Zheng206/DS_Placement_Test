@@ -129,7 +129,7 @@ ggplot(combined_df, aes(x = Year, y = `Death toll`, fill = Type)) +
 
 Some key findings can be found below:
 
--   In 1931, the **flood** caused a significant number of deaths, far more than in any other year in the two centuries.
+-   In **1931**, the **flood** caused a significant number of deaths, far more than in any other year in the two centuries.
 -   **Earthquakes**, **floods**, and **tropical cyclones** are three types of disasters that have been seen more often in the past two centuries compared to other types. Among these three, **earthquakes** are the most common.
 -   **Tropical cyclones** were seen more often from the **1950s to the 1980s**.
 :::
@@ -234,10 +234,10 @@ ggplot(test_df, aes(x = es, y = b, color = type)) +
 :::
 
 ::: callout-tip
-### Learning Rate
+### Key Findings
 
 Some key findings can be found below:
 
--   If the learning rate is **too large**, each update step can move far from its current position, pushing b further away and causing it to **diverge** to very large values. This can make the loss function increase rather than decrease or cause b to **oscillate around the minimum**.
+-   If the **learning rate is too large**, each update step can move far from its current position, pushing b further away and causing it to **diverge** to very large values. This can make the loss function increase rather than decrease or cause b to **oscillate around the minimum**.
 -   Different values of n are sensitive to different learning rates: as **n becomes larger**, the **learning rate needs to be smaller**, or the algorithm will diverge and fail.
 :::
